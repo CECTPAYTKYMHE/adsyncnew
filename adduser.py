@@ -10,11 +10,11 @@ s = True
 # data = consumer.data
 # print(data)
 data = []
-
 while s:
     if len(data) == 0:
 
         data = consum()
+        print(data)
     for i in data:
         if 'password' in i:
             print('Смена пароля   ')
