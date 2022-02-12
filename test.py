@@ -1,0 +1,2 @@
+k = '         '
+print(k.replace(' ',''))
