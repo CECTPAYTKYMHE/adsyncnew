@@ -31,7 +31,28 @@ class User:
         else:
             self.__initials = f'{self.__givenName[0:1]}.'
         return self.__initials
-  
+    
+    def cnisexist(self):
+        __iscnexist = self.__conn.search('dc=test,dc=local',f'(&(cn={self.__displayName})(objectClass=User))')
+        __iscnexist = str(__iscnexist)
+        if 'raw_dn' in __iscnexist:
+            return True
+        else:
+            return False
+    
+    def ifcnexist(self):
+        i = 0
+        while self.cnisexist():
+            i+=1
+            name = f'{self.__displayName}_{i}'
+            namexist= self.__conn.search('dc=test,dc=local',f'(&(cn={name})(objectClass=User))')
+            namexist = str(namexist)
+            if 'raw_dn' in namexist:
+                del name
+            else:
+                self.__displayName = name
+        return self.__displayName
+        
     def usernotexist(self):
         __userexist = self.__conn.search('dc=test,dc=local',f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
         __userexist = str(__userexist)
@@ -66,6 +87,7 @@ class User:
         else:
             self.__displayName = f'{self.__sn} {self.__givenName}'
             self.__middleName = '<not set>'
+
         return self.__displayName
             
            
@@ -75,6 +97,8 @@ class User:
         
     def adduser(self):
         if self.usernotexist():
+            self.ifcnexist()
+            self.dngenerator()
             self.__conn.add(f'{self.__dn}', ['person','user'],
         {'givenName' : {self.__givenName},
         'sn': {self.__sn},
@@ -94,8 +118,14 @@ class User:
                     addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
                 print(self.__conn.result)
         else:
-            print('Пользователь существует')
+            self.ifcnexist()
+            self.dngenerator()
+            print(self.__displayName)
+            
 
-test = User('Амир','Исматуллаев','Хондамирович','17B60825-80B6-4250-9E82-C164BB4CB4EE',['Student'])
-  
-# print(test.logingenerator())
+            
+                
+
+test = User('Амир','Исматуллаев','Хондамирович','8B22574D-jfdjfldskfods',['Student'])
+print(test.__dict__)
+print(test.usernotexist())
