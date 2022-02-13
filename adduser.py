@@ -126,6 +126,6 @@ class User:
             
                 
 
-test = User('Амир','Исматуллаев','Хондамирович','8B22574D-jfdjfldskfods',['Student'])
+test = User('Амир','Исматуллаев','  ','8B22574D-jfdjfldskfods333434233',['Student'])
 print(test.__dict__)
 print(test.usernotexist())
