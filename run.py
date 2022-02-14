@@ -28,13 +28,12 @@ while s:
                 i['personal']['middleName'],\
                 i['id'],\
                 i['roles'])
-            print('Создание изменение учетной записи   ',\
-                i['personal']['firstName'],\
-                i['personal']['lastName'],\
-                i['personal']['middleName'],\
-                i['id'],\
-                ''.join(i['roles']))
-            print(adduser.User.__dict__)
+            # print('Создание изменение учетной записи   ',\
+            #     i['personal']['firstName'],\
+            #     i['personal']['lastName'],\
+            #     i['personal']['middleName'],\
+            #     i['id'],\
+            #     ''.join(i['roles']))
             # del data[0]
         elif 'uuid' in i and len(i) == 1:
             print('блокировка учетки   ')

@@ -1,14 +1,19 @@
+# -*- coding: utf-8 -*-
+'''
+@author: aivanov
+'''
 import ldap3
 import adconnect
 import settings
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as addUsersInGroups
-from transliterate import translit
+from translit_gost_R_52535_1 import translit
 from ldap3.utils.log import set_library_log_detail_level, OFF, BASIC, NETWORK, EXTENDED
 set_library_log_detail_level(EXTENDED)
 class User:
-    # Инициалиация класса пользотеля, выдача UAC(если tuple пустой то блокировать учетную запись)
-    # Проверка наличия отчетства, генерация логина(с проверкой существующих в домене)
-    # Генерация DN и CN пользователя
+    # Инициалиация класса пользователя, выдача UAC(если tuple групп пустой, то блокировать учетную запись)
+    # Проверка наличия отчества
+    # Генерация логина(с проверкой существующих в домене)
+    # Генерация DN и CN пользователя(с проверкой существующих в домене)
     # Генерация инициалов
     # Создание изменение пользователя и его групп
     def __init__(self,givenName,sn,middleName,ncfuGUID,group):
@@ -27,7 +32,8 @@ class User:
         self.logingenerator()
         self.dngenerator()
         self.getinitials()
-        self.addmodifyuser()
+        # self.addmodifyuser()
+        self.userresultfortest()
         
         
     def getinitials(self):
@@ -121,7 +127,23 @@ class User:
             self.dngenerator()
             print(self.__displayName)
             print('User exist')
-            
+    
+    def userresultfortest(self):
+        print(f'\
+                sn: {self.__sn}\n\
+                givenName : {self.__givenName}\n\
+                middleName: {self.__middleName}\n\
+                ncfuFullName: {self.__displayName}\n\
+                ncfuTimestamp: {settings.time}\n\
+                userAccountControl: {self.__uac}\n\
+                employeeNumber: {self.__employeeNumber}\n\
+                initials: {self.__initials}\n\
+                displayName: {self.__displayName}\n\
+                userPrincipalName: {self.__sAMA}{settings.domain}\n\
+                sAMAccountName : {self.__sAMA}\n\
+                ncfuGUID: {self.__ncfuGUID}\n\
+                group : {self.__group}\n')
+                
         
     def adduser(self):
             self.__conn.add(f'{self.__dn}', ['person','user'],
@@ -144,9 +166,9 @@ class User:
                 print(self.__conn.result)
                 
     def modifyuser(self):
+        pass
         
            
 
 
-test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfdjfldskfods333434234443',['Student','Chair','Manager','Employee'])
-
+# test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfdjfldskfods333434234443',['Student','Chair','Manager','Employee'])
