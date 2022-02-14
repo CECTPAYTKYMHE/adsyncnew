@@ -34,6 +34,7 @@ while s:
                 i['personal']['middleName'],\
                 i['id'],\
                 ''.join(i['roles']))
+            print(adduser.User.__dict__)
             # del data[0]
         elif 'uuid' in i and len(i) == 1:
             print('блокировка учетки   ')

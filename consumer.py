@@ -20,7 +20,7 @@ def consum():
         data.append(msg)
 
         # Acknowledge the message
-        channel.basic_ack(method_frame.delivery_tag,multiple=False)
+        # channel.basic_ack(method_frame.delivery_tag,multiple=False)
 
         # Escape out of the loop after 10 messages
         if method_frame.delivery_tag == 1:

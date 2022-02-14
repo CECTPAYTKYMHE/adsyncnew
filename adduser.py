@@ -6,6 +6,11 @@ from transliterate import translit
 from ldap3.utils.log import set_library_log_detail_level, OFF, BASIC, NETWORK, EXTENDED
 set_library_log_detail_level(EXTENDED)
 class User:
+    # Инициалиация класса пользотеля, выдача UAC(если tuple пустой то блокировать учетную запись)
+    # Проверка наличия отчетства, генерация логина(с проверкой существующих в домене)
+    # Генерация DN и CN пользователя
+    # Генерация инициалов
+    # Создание изменение пользователя и его групп
     def __init__(self,givenName,sn,middleName,ncfuGUID,group):
         self.__conn = adconnect.conn
         self.__givenName = givenName.replace(' ','')
@@ -22,7 +27,7 @@ class User:
         self.logingenerator()
         self.dngenerator()
         self.getinitials()
-        self.adduser()
+        self.addmodifyuser()
         
         
     def getinitials(self):
@@ -33,7 +38,7 @@ class User:
         return self.__initials
     
     def cnisexist(self):
-        __iscnexist = self.__conn.search('dc=test,dc=local',f'(&(cn={self.__displayName})(objectClass=User))')
+        __iscnexist = self.__conn.search({settings.dndomian},f'(&(cn={self.__displayName})(objectClass=User))')
         __iscnexist = str(__iscnexist)
         if 'raw_dn' in __iscnexist:
             return True
@@ -45,7 +50,7 @@ class User:
         while self.cnisexist():
             i+=1
             name = f'{self.__displayName}_{i}'
-            namexist= self.__conn.search('dc=test,dc=local',f'(&(cn={name})(objectClass=User))')
+            namexist= self.__conn.search({settings.dndomian},f'(&(cn={name})(objectClass=User))')
             namexist = str(namexist)
             if 'raw_dn' in namexist:
                 del name
@@ -54,7 +59,7 @@ class User:
         return self.__displayName
         
     def usernotexist(self):
-        __userexist = self.__conn.search('dc=test,dc=local',f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
+        __userexist = self.__conn.search({settings.dndomian},f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
         __userexist = str(__userexist)
         if 'raw_dn' in __userexist:
             return False
@@ -70,16 +75,27 @@ class User:
         while islogin:
             self.__sAMA = firstpart[0:i] + lastpart
             self.__sAMA = self.__sAMA.lower()
-            __isloginexist = self.__conn.search('dc=test,dc=local',f'(&(sAMAccountname={self.__sAMA})(objectClass=User))')
+            __isloginexist = self.__conn.search({settings.dndomian},f'(&(sAMAccountname={self.__sAMA})(objectClass=User))')
             __isloginexist = str(__isloginexist)
-            if 'raw_dn' in __isloginexist:
+            if 'raw_dn' in __isloginexist and i <= 3:
                 i += 1
-                if i >= 3:
-                    self.__sAMA = f'{self.__sAMA}{k}'
-                    k += 1
+            elif 'raw_dn' not in __isloginexist:
+                return self.__sAMA
             else:
                 islogin = False
+        islogin = True
+        while islogin:
+            k += 1
+            login = f'{self.__sAMA}{k}'
+            __isloginexist = self.__conn.search({settings.dndomian},f'(&(sAMAccountname={login})(objectClass=User))')
+            __isloginexist = str(__isloginexist)
+            if 'raw_dn' in __isloginexist and i >= 3:
+                del login
+            else:
+                self.__sAMA = login
+                islogin = False
                 return self.__sAMA
+        
     
     def checkmiddlenameexist(self):
         if self.__middleName != '':
@@ -92,13 +108,22 @@ class User:
             
            
     def dngenerator(self):
-        self.__dn = f'cn={self.__displayName},ou={self.__sn[0:1]},ou=Пользователи,dc=test,dc=local'
+        self.__dn = f'cn={self.__displayName},ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}'
         return self.__dn
-        
-    def adduser(self):
+    
+    def addmodifyuser(self):
         if self.usernotexist():
             self.ifcnexist()
             self.dngenerator()
+            self.adduser()
+        else:
+            self.ifcnexist()
+            self.dngenerator()
+            print(self.__displayName)
+            print('User exist')
+            
+        
+    def adduser(self):
             self.__conn.add(f'{self.__dn}', ['person','user'],
         {'givenName' : {self.__givenName},
         'sn': {self.__sn},
@@ -117,15 +142,11 @@ class User:
                 for group in self.__group:
                     addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
                 print(self.__conn.result)
-        else:
-            self.ifcnexist()
-            self.dngenerator()
-            print(self.__displayName)
-            
-
-            
                 
+    def modifyuser(self):
+        
+           
 
-test = User('Амир','Исматуллаев','  ','8B22574D-jfdjfldskfods333434233',['Student'])
-print(test.__dict__)
-print(test.usernotexist())
+
+test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfdjfldskfods333434234443',['Student','Chair','Manager','Employee'])
+
