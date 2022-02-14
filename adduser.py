@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 '''
 @author: aivanov
 '''
@@ -6,6 +5,7 @@ import ldap3
 import adconnect
 import settings
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as addUsersInGroups
+from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups as removeUsersFromGroups
 from translit_gost_R_52535_1 import translit
 from ldap3.utils.log import set_library_log_detail_level, OFF, BASIC, NETWORK, EXTENDED
 set_library_log_detail_level(EXTENDED)
@@ -30,10 +30,10 @@ class User:
         self.__ncfuGUID = ncfuGUID
         self.checkmiddlenameexist()
         self.logingenerator()
-        self.dngenerator()
+        self.dngeneratorfornewuser()
         self.getinitials()
-        # self.addmodifyuser()
-        self.userresultfortest()
+        self.addmodifyuser()
+        # self.userresultfortest()
         
         
     def getinitials(self):
@@ -44,7 +44,7 @@ class User:
         return self.__initials
     
     def cnisexist(self):
-        __iscnexist = self.__conn.search({settings.dndomian},f'(&(cn={self.__displayName})(objectClass=User))')
+        __iscnexist = self.__conn.search({settings.dndomian},f'(&(cn={self.__fullname})(objectClass=User))')
         __iscnexist = str(__iscnexist)
         if 'raw_dn' in __iscnexist:
             return True
@@ -55,14 +55,14 @@ class User:
         i = 0
         while self.cnisexist():
             i+=1
-            name = f'{self.__displayName}_{i}'
+            name = f'{self.__fullname}_{i}'
             namexist= self.__conn.search({settings.dndomian},f'(&(cn={name})(objectClass=User))')
             namexist = str(namexist)
             if 'raw_dn' in namexist:
                 del name
             else:
-                self.__displayName = name
-        return self.__displayName
+                self.__fullname = name
+        return self.__fullname
         
     def usernotexist(self):
         __userexist = self.__conn.search({settings.dndomian},f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
@@ -105,60 +105,68 @@ class User:
     
     def checkmiddlenameexist(self):
         if self.__middleName != '':
-            self.__displayName = f'{self.__sn} {self.__givenName} {self.__middleName}'
+            self.__fullname = f'{self.__sn} {self.__givenName} {self.__middleName}'
         else:
-            self.__displayName = f'{self.__sn} {self.__givenName}'
+            self.__fullname = f'{self.__sn} {self.__givenName}'
             self.__middleName = '<not set>'
-
-        return self.__displayName
+        self.__displayname = self.__fullname
+        return self.__fullname
             
            
-    def dngenerator(self):
-        self.__dn = f'cn={self.__displayName},ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}'
+    def dngeneratorfornewuser(self):
+        self.__dn = f'cn={self.__fullname},ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}'
+        return self.__dn
+    
+    def dngeneratorforexistuser(self):
+        __userexist = self.__conn.search('dc=test,dc=local',f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
+        __userexist = __userexist[2][0]['dn']
+        self.__dn = __userexist
         return self.__dn
     
     def addmodifyuser(self):
         if self.usernotexist():
             self.ifcnexist()
-            self.dngenerator()
+            self.dngeneratorfornewuser()
             self.adduser()
         else:
-            self.ifcnexist()
-            self.dngenerator()
-            print(self.__displayName)
-            print('User exist')
+            self.dngeneratorforexistuser()
+            
     
     def userresultfortest(self):
+        self.ifcnexist()
+        self.dngeneratorfornewuser()
         print(f'\
+                dn: {self.__dn}\n\
                 sn: {self.__sn}\n\
                 givenName : {self.__givenName}\n\
                 middleName: {self.__middleName}\n\
-                ncfuFullName: {self.__displayName}\n\
+                ncfuFullName: {self.__displayname}\n\
                 ncfuTimestamp: {settings.time}\n\
                 userAccountControl: {self.__uac}\n\
                 employeeNumber: {self.__employeeNumber}\n\
                 initials: {self.__initials}\n\
-                displayName: {self.__displayName}\n\
+                displayName: {self.__displayname}\n\
                 userPrincipalName: {self.__sAMA}{settings.domain}\n\
                 sAMAccountName : {self.__sAMA}\n\
                 ncfuGUID: {self.__ncfuGUID}\n\
                 group : {self.__group}\n')
                 
-        
+       
     def adduser(self):
             self.__conn.add(f'{self.__dn}', ['person','user'],
         {'givenName' : {self.__givenName},
         'sn': {self.__sn},
-        'ncfuFullName': {self.__displayName},
+        'ncfuFullName': {self.__displayname},
         'ncfuTimestamp': {settings.time},
         'userAccountControl': {self.__uac},
         'employeeNumber': {self.__employeeNumber},
         'initials': {self.__initials},
         'middleName': {self.__middleName},
-        'displayName': {self.__displayName},
+        'displayName': {self.__displayname},
         'userPrincipalName': f'{self.__sAMA}{settings.domain}',
         'sAMAccountName' : {self.__sAMA},
-        'ncfuGUID': {self.__ncfuGUID}})
+        'ncfuGUID': {self.__ncfuGUID}
+        })
             print(self.__conn.result)
             if self.__group != '':
                 for group in self.__group:
@@ -166,9 +174,21 @@ class User:
                 print(self.__conn.result)
                 
     def modifyuser(self):
-        pass
+        removeUsersFromGroups(self.__conn,{self.__dn})
+        self.__conn.modify(self.__dn,
+        {'givenName' : {self.__givenName},
+        'sn': {self.__sn},
+        'middleName': {self.__middleName},
+        'displayName': {self.__displayname},
+        'ncfuFullName': {self.__displayname},
+        'userAccountControl': {self.__uac},
+        'initials': {self.__initials},
+        'ncfuTimestamp': {settings.time},
+        })
         
            
 
 
-# test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfdjfldskfods333434234443',['Student','Chair','Manager','Employee'])
+test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfd54534545354534553ggg',['Student','Chair','Manager','Employee'])
+
+print(test.dngeneratorforexistuser())

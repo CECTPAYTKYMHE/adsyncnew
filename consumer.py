@@ -17,13 +17,14 @@ def consum():
         # print(properties)
         # print(body)
         msg = json.loads(body)
+        print(msg)
         data.append(msg)
 
         # Acknowledge the message
         # channel.basic_ack(method_frame.delivery_tag,multiple=False)
 
         # Escape out of the loop after 10 messages
-        if method_frame.delivery_tag == 10:
+        if method_frame.delivery_tag == 1:
             break
 
     # Cancel the consumer and return any pending messages
