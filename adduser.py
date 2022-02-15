@@ -2,6 +2,7 @@
 @author: aivanov
 '''
 import ldap3
+from ldap3 import MODIFY_REPLACE
 import adconnect
 import settings
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as addUsersInGroups
@@ -16,7 +17,7 @@ class User:
     # Генерация DN и CN пользователя(с проверкой существующих в домене)
     # Генерация инициалов
     # Создание изменение пользователя и его групп
-    def __init__(self,givenName,sn,middleName,ncfuGUID,group):
+    def __init__(self,givenName,sn,middleName,ncfuGUID,group,department='<not set>',title='<not set>'):
         self.__conn = adconnect.conn
         self.__givenName = givenName.replace(' ','')
         self.__middleName = middleName.replace(' ','')
@@ -26,6 +27,8 @@ class User:
             self.__uac = '544'
         else:
             self.__uac = '546'
+        self.__department = department
+        self.__title = title
         self.__employeeNumber = ncfuGUID.replace('-','')
         self.__ncfuGUID = ncfuGUID
         self.checkmiddlenameexist()
@@ -129,12 +132,20 @@ class User:
             self.dngeneratorfornewuser()
             self.adduser()
         else:
+            self.ifcnexist()
             self.dngeneratorforexistuser()
+            self.modifyuser()
             
     
     def userresultfortest(self):
-        self.ifcnexist()
-        self.dngeneratorfornewuser()
+        if self.usernotexist():
+            print('New user')
+            self.ifcnexist()
+            self.dngeneratorfornewuser()
+        else:
+            print('Modify user')
+            self.ifcnexist()
+            self.dngeneratorforexistuser()
         print(f'\
                 dn: {self.__dn}\n\
                 sn: {self.__sn}\n\
@@ -165,30 +176,39 @@ class User:
         'displayName': {self.__displayname},
         'userPrincipalName': f'{self.__sAMA}{settings.domain}',
         'sAMAccountName' : {self.__sAMA},
-        'ncfuGUID': {self.__ncfuGUID}
+        'ncfuGUID': {self.__ncfuGUID},
+        'title': {self.__title},
+        'department': {self.__department}
         })
             print(self.__conn.result)
             if self.__group != '':
                 for group in self.__group:
                     addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
-                print(self.__conn.result)
+                    print(self.__conn.result)
                 
     def modifyuser(self):
-        removeUsersFromGroups(self.__conn,{self.__dn})
+        for group in settings.defaultgroup:
+            removeUsersFromGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local',fix=True)
+            print(self.__conn.result)
+        if self.__group != '':
+            for group in self.__group:
+                addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
+                print(self.__conn.result)
         self.__conn.modify(self.__dn,
-        {'givenName' : {self.__givenName},
-        'sn': {self.__sn},
-        'middleName': {self.__middleName},
-        'displayName': {self.__displayname},
-        'ncfuFullName': {self.__displayname},
-        'userAccountControl': {self.__uac},
-        'initials': {self.__initials},
-        'ncfuTimestamp': {settings.time},
+        {'givenName' : [(MODIFY_REPLACE, [self.__givenName])],
+        'sn': [(MODIFY_REPLACE, [self.__sn])],
+        'middleName': [(MODIFY_REPLACE, [self.__middleName])],
+        'displayName': [(MODIFY_REPLACE, [self.__displayname])],
+        'ncfuFullName': [(MODIFY_REPLACE, [self.__displayname])],
+        'userAccountControl': [(MODIFY_REPLACE, [self.__uac])],
+        'initials': [(MODIFY_REPLACE, [self.__initials])],
+        'ncfuTimestamp': [(MODIFY_REPLACE, [settings.time])],
+        'title': [(MODIFY_REPLACE, [self.__title])],
+        'department': [(MODIFY_REPLACE, [self.__department])]
         })
+        self.__conn.modify_dn(self.__dn,f'cn={self.__displayname}',new_superior=f'ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}')
         
            
-
-
-test = User('Амир','Исматуллаев','Васильевич','8B22574D-jfd54534545354534553ggg',['Student','Chair','Manager','Employee'])
-
-print(test.dngeneratorforexistuser())
+if __name__ == '__main__':
+    test = User('Амир','Беличенко','Константинович','8B22574D-jfd54534545354534553ggg',['Chair','Manager','Employee'],'ОМР','лаборант')
+    

@@ -4,44 +4,44 @@ Created on 06.11.2013
 
 @author: status
 '''
-translit_dict = {u'а': u'a',
-            u'б': u'b',
-            u'в': u'v',
-            u'г': u'g',
-            u'д': u'd',
-            u'е': u'e',
-            u'ё': u'e',
-            u'ж': u'zh',
-            u'з': u'z',
-            u'и': u'i',
-            u'й': u'i',
-            u'к': u'k',
-            u'л': u'l',
-            u'м': u'm',
-            u'н': u'n',
-            u'о': u'o',
-            u'п': u'p',
-            u'р': u'r',
-            u'с': u's',
-            u'т': u't',
-            u'у': u'u',
-            u'ф': u'f',
-            u'х': u'kh',
-            u'ц': u'tc',
-            u'ч': u'ch',
-            u'ш': u'sh',
-            u'щ': u'shch',
-            u'ъ': u'',
-            u'ы': u'y',
-            u'ь': u'',
-            u'э': u'e',
-            u'ю': u'iu',
-            u'я': u'ia',}
+translit_dict = {'а': 'a',
+            'б': 'b',
+            'в': 'v',
+            'г': 'g',
+            'д': 'd',
+            'е': 'e',
+            'ё': 'e',
+            'ж': 'zh',
+            'з': 'z',
+            'и': 'i',
+            'й': 'i',
+            'к': 'k',
+            'л': 'l',
+            'м': 'm',
+            'н': 'n',
+            'о': 'o',
+            'п': 'p',
+            'р': 'r',
+            'с': 's',
+            'т': 't',
+            'у': '',
+            'ф': 'f',
+            'х': 'kh',
+            'ц': 'tc',
+            'ч': 'ch',
+            'ш': 'sh',
+            'щ': 'shch',
+            'ъ': '',
+            'ы': 'y',
+            'ь': '',
+            'э': 'e',
+            'ю': 'i',
+            'я': 'ia',}
 
 def get_lang_digest(digest):
-        if digest >= u'a' and digest <= u'z':
+        if digest >= 'a' and digest <= 'z':
             return 'EN'
-        elif (digest > u'z' and digest <= u'я') or digest == u'ё':
+        elif (digest > 'z' and digest <= 'я') or digest == 'ё':
             return 'RU'
         else:
             return None
@@ -66,7 +66,7 @@ def translit(word,*args, **kwargs):
 
 def translit_simple(word):
     word = word.lower()
-    new_word = u''
+    new_word = ''
     for digest in word:
         if digest in translit_dict:
             digest = translit_dict[digest]
