@@ -1,21 +1,23 @@
-# from consumer import consum
+from consumer import consum
 import time
 import csv
 
 import settings
 import adduser
-k = 1
+
 s = True
-# data = []
-def main(data):
+
+def main(data=consum()):
     k = 1
     s = True
     while s:
-        # if len(data) == 0:
+        if len(data) == 0:
 
             
-            # print(data)
+            data=consum()
         for i in data:
+            print(k)
+            k += 1
             if 'password' in i:
                 print('Смена пароля   ')
 
@@ -25,7 +27,9 @@ def main(data):
                     i['personal']['lastName'],\
                     i['personal']['middleName'],\
                     i['id'],\
-                    i['roles'])
+                    i['roles'],
+                    i['positions'],
+                    i['study'])
                 
                 # print(f"Создание изменение учетной записи   \n\
                 #     {i['personal']['firstName']}\n,\
@@ -45,5 +49,7 @@ def main(data):
                 print('что-то')
         # k += 1
         data = []
-        if len(data) == 0:
-            s = False
+        # if len(data) == 0:
+        #     s = False
+if __name__ == '__main__':
+    main()

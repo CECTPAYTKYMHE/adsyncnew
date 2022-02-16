@@ -1,8 +1,9 @@
 '''
 @author: aivanov
 '''
+from asyncio import start_unix_server
 import ldap3
-from ldap3 import MODIFY_REPLACE
+from ldap3 import MODIFY_REPLACE, MODIFY_DELETE
 import adconnect
 import settings
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups as addUsersInGroups
@@ -17,30 +18,44 @@ class User:
     # Генерация DN и CN пользователя(с проверкой существующих в домене)
     # Генерация инициалов
     # Создание изменение пользователя и его групп
-    def __init__(self,givenName,sn,middleName,ncfuGUID,group,department='-',title='-'):
+    def __init__(self,givenName,sn,middleName,ncfuGUID,group,position,study):
         self.__conn = adconnect.conn
         self.__givenName = givenName.replace(' ','')
         self.__middleName = middleName.replace(' ','')
         self.__group = group
         self.__sn = sn.replace(' ','')
-        if self.__group != '':
+        if self.__group != []:
             self.__uac = '544'
         else:
             self.__uac = '546'
-        self.__department = department
-        self.__title = title
+        self.__position = position
+        self.__study = study
         self.__employeeNumber = ncfuGUID.replace('-','')
         self.__ncfuGUID = ncfuGUID
         self.checkmiddlenameexist()
         self.logingenerator()
         self.dngeneratorfornewuser()
         self.getinitials()
-        # self.addmodifyuser()
+        self.checkdeptitle()
+        self.addmodifyuser()
         # self.userresultfortest()
-    
+        
+    # Проверям наличие места работы, группы студента, пишем '-' если ничего не найдено
+    # '-' потом проверяются в addmodifyuser() если они есть оставляют поле пустым(удаляют старые атрибуты)
     def checkdeptitle(self):
-        if 'Student' in self.__group and 'Employee' not in self.__group :
-            self.__department = 'Студент'
+        if self.__study == []:
+            self.__title = '-'
+            self.__department = '-'
+        else:
+            self.__title = self.__study[0]['academicGroup']
+            self.__department = self.__study[0]['specialityCode']
+        if self.__position == []:
+            pass
+        else:
+            self.__title = self.__position[0]['positionName']
+            self.__department = self.__position[0]['positionType']
+        return self.__department,self.__title
+        
             
     # Проверка на наличие отчества, если отчества нету то инициалы только имени. 
     def getinitials(self):
@@ -141,10 +156,12 @@ class User:
     # Вызов создания, изменения пользователей
     def addmodifyuser(self):
         if self.usernotexist():
+            print('Создание учетной записи', self.__displayname,self.__group)
             self.ifcnexist()
             self.dngeneratorfornewuser()
             self.adduser()
         else:
+            print('Изменение учетной записи', self.__displayname,self.__group)
             self.ifcnexist()
             self.dngeneratorforexistuser()
             self.modifyuser()
@@ -177,55 +194,78 @@ class User:
                 
     # Создание нового пользователя, добавление пользователя в группы.  
     def adduser(self):
-            self.__conn.add(f'{self.__dn}', ['person','user'],
-        {'givenName' : {self.__givenName},
-        'sn': {self.__sn},
-        'ncfuFullName': {self.__displayname},
-        'ncfuTimestamp': {settings.time},
-        'userAccountControl': {self.__uac},
-        'employeeNumber': {self.__employeeNumber},
-        'initials': {self.__initials},
-        'middleName': {self.__middleName},
-        'displayName': {self.__displayname},
-        'userPrincipalName': f'{self.__sAMA}{settings.domain}',
-        'sAMAccountName' : {self.__sAMA},
-        'ncfuGUID': {self.__ncfuGUID},
-        'title': {self.__title},
-        'department': {self.__department}
-        })
-            print(self.__conn.result)
-            if self.__group != '':
-                for group in self.__group:
-                    addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
-                    print(self.__conn.result)
+        self.__conn.add(f'{self.__dn}', ['person','user'],
+            {'givenName' : {self.__givenName},
+            'sn': {self.__sn},
+            'ncfuFullName': {self.__displayname},
+            'ncfuTimestamp': {settings.time},
+            'userAccountControl': {self.__uac},
+            'employeeNumber': {self.__employeeNumber},
+            'initials': {self.__initials},
+            'middleName': {self.__middleName},
+            'displayName': {self.__displayname},
+            'userPrincipalName': f'{self.__sAMA}{settings.domain}',
+            'sAMAccountName' : {self.__sAMA},
+            'ncfuGUID': {self.__ncfuGUID},
+            })
+        if self.__title == '-' or self.__department == '-':
+            self.__conn.modify(self.__dn,
+                               {
+                                'title': [(MODIFY_DELETE, [])],
+                                'department': [(MODIFY_DELETE, [])]
+                               })
+        else:
+            self.__conn.modify(self.__dn,
+                               {
+                                'title': [(MODIFY_REPLACE, [self.__title])],
+                                'department': [(MODIFY_REPLACE, [self.__department])]
+                               })
+        #print(self.__conn.result)
+        if self.__group != '':
+            for group in self.__group:
+                addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,{settings.dndomian}')
+                #print(self.__conn.result)
     
     # Изменение ползователей, удаляем пользователя из стандартным групп, 
     # добавляем пришедшие группы, вносим изменения в пользователя.
     def modifyuser(self):
         for group in settings.defaultgroup:
-            removeUsersFromGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local',fix=True)
-            print(self.__conn.result)
+            removeUsersFromGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,{settings.dndomian}',fix=True)
+            #print(self.__conn.result)
         if self.__group != '':
             for group in self.__group:
-                addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
-                print(self.__conn.result)
-        self.__conn.modify(self.__dn,
-        {'givenName' : [(MODIFY_REPLACE, [self.__givenName])],
-        'sn': [(MODIFY_REPLACE, [self.__sn])],
-        'middleName': [(MODIFY_REPLACE, [self.__middleName])],
-        'displayName': [(MODIFY_REPLACE, [self.__displayname])],
-        'ncfuFullName': [(MODIFY_REPLACE, [self.__displayname])],
-        'userAccountControl': [(MODIFY_REPLACE, [self.__uac])],
-        'initials': [(MODIFY_REPLACE, [self.__initials])],
-        'ncfuTimestamp': [(MODIFY_REPLACE, [settings.time])],
-        'title': [(MODIFY_REPLACE, [self.__title])],
-        'department': [(MODIFY_REPLACE, [self.__department])]
-        })
+                if group in settings.defaultgroup:
+                    addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,{settings.dndomian}')
+                    #print(self.__conn.result)
+        self.__conn.modify(self.__dn,\
+            {'givenName' : [(MODIFY_REPLACE, [self.__givenName])],
+            'sn': [(MODIFY_REPLACE, [self.__sn])],
+            'middleName': [(MODIFY_REPLACE, [self.__middleName])],
+            'displayName': [(MODIFY_REPLACE, [self.__displayname])],
+            'ncfuFullName': [(MODIFY_REPLACE, [self.__displayname])],
+            'userAccountControl': [(MODIFY_REPLACE, [self.__uac])],
+            'initials': [(MODIFY_REPLACE, [self.__initials])],
+            'ncfuTimestamp': [(MODIFY_REPLACE, [settings.time])]
+            })
+        if self.__title == '-' or self.__department == '-':
+            self.__conn.modify(self.__dn,
+                               {
+                                'title': [(MODIFY_DELETE, [])],
+                                'department': [(MODIFY_DELETE, [])]
+                               })
+        else:
+            self.__conn.modify(self.__dn,
+                               {
+                                'title': [(MODIFY_REPLACE, [self.__title])],
+                                'department': [(MODIFY_REPLACE, [self.__department])]
+                               })
+        #print(self.__conn.result)
         self.__conn.modify_dn(self.__dn,f'cn={self.__displayname}',new_superior=f'ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}')
+        #print(self.__conn.result)
 
 
 
 if __name__ == '__main__':
-    test = User('Амир','Беличенко','Константинович','8B22574D-jfd54534545354534553ggg',['Chair','Manager','Student','Employee'],title='lol')
-    test.checkdeptitle()
+    test = User('Елизавета','Солодухина','Дмитриевна','0046DC80-7487-4664-A5F9-A6227256E18D',['Chair','Manager','Student','Employee'],[],[])
+    
     

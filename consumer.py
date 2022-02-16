@@ -2,7 +2,7 @@ import json
 import pika
 import settings
 import time
-import run
+# import run
 def consum(): 
     k = 0  
     credential = pika.PlainCredentials(settings.credentialname, settings.credentialpass)
@@ -18,12 +18,12 @@ def consum():
         # print(body)
         msg = json.loads(body)
         data.append(msg)
-        run.main(data)
+      
         # Acknowledge the message
         channel.basic_ack(method_frame.delivery_tag,multiple=False)
 
         # Escape out of the loop after 10 messages
-        if method_frame.delivery_tag == 1:
+        if method_frame.delivery_tag == 10:
             break
 
     # Cancel the consumer and return any pending messages
@@ -36,4 +36,3 @@ def consum():
     connection.close()
     return data
 
-consum()
