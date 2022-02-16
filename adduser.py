@@ -17,7 +17,7 @@ class User:
     # Генерация DN и CN пользователя(с проверкой существующих в домене)
     # Генерация инициалов
     # Создание изменение пользователя и его групп
-    def __init__(self,givenName,sn,middleName,ncfuGUID,group,department='<not set>',title='<not set>'):
+    def __init__(self,givenName,sn,middleName,ncfuGUID,group,department='-',title='-'):
         self.__conn = adconnect.conn
         self.__givenName = givenName.replace(' ','')
         self.__middleName = middleName.replace(' ','')
@@ -35,10 +35,14 @@ class User:
         self.logingenerator()
         self.dngeneratorfornewuser()
         self.getinitials()
-        self.addmodifyuser()
+        # self.addmodifyuser()
         # self.userresultfortest()
-        
-        
+    
+    def checkdeptitle(self):
+        if 'Student' in self.__group and 'Employee' not in self.__group :
+            self.__department = 'Студент'
+            
+    # Проверка на наличие отчества, если отчества нету то инициалы только имени. 
     def getinitials(self):
         if self.__givenName != '' and self.__middleName != '<not set>':
             self.__initials = f'{self.__givenName[0:1]}.{self.__middleName[0:1]}.'
@@ -46,6 +50,7 @@ class User:
             self.__initials = f'{self.__givenName[0:1]}.'
         return self.__initials
     
+    # Проверка на CN в домене
     def cnisexist(self):
         __iscnexist = self.__conn.search({settings.dndomian},f'(&(cn={self.__fullname})(objectClass=User))')
         __iscnexist = str(__iscnexist)
@@ -53,7 +58,8 @@ class User:
             return True
         else:
             return False
-    
+        
+    # Если такой CN уже существует то добавлять _[1-...] пока не будет совпадения
     def ifcnexist(self):
         i = 0
         while self.cnisexist():
@@ -66,7 +72,8 @@ class User:
             else:
                 self.__fullname = name
         return self.__fullname
-        
+    
+    # Проверка существования пользователя на основании ncfuGUID
     def usernotexist(self):
         __userexist = self.__conn.search({settings.dndomian},f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
         __userexist = str(__userexist)
@@ -74,7 +81,10 @@ class User:
             return False
         else:
             return True
-        
+
+    # Генерация логина пользователя с проверкой существующих, если существует
+    # то добавлять по одной букве с максимальным количеством 3, если и такой существует то 
+    # добавлять цифры в конце логина
     def logingenerator(self):
         islogin = True
         i = 1
@@ -105,7 +115,7 @@ class User:
                 islogin = False
                 return self.__sAMA
         
-    
+    # Проверка наличия отчества, с возвратом CN, должен стоять первым в инит класса!
     def checkmiddlenameexist(self):
         if self.__middleName != '':
             self.__fullname = f'{self.__sn} {self.__givenName} {self.__middleName}'
@@ -115,17 +125,20 @@ class User:
         self.__displayname = self.__fullname
         return self.__fullname
             
-           
+    # Генерация DN для нового пользователя должен стоять после ifcnexist
     def dngeneratorfornewuser(self):
         self.__dn = f'cn={self.__fullname},ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}'
         return self.__dn
     
+    # Генерация DN для существующего пользователя на основании ncfuGUID 
+    # вытягиваем DN из возвращенного словаря
     def dngeneratorforexistuser(self):
         __userexist = self.__conn.search('dc=test,dc=local',f'(&(ncfuGUID={self.__ncfuGUID})(objectClass=User))')
         __userexist = __userexist[2][0]['dn']
         self.__dn = __userexist
         return self.__dn
     
+    # Вызов создания, изменения пользователей
     def addmodifyuser(self):
         if self.usernotexist():
             self.ifcnexist()
@@ -162,7 +175,7 @@ class User:
                 ncfuGUID: {self.__ncfuGUID}\n\
                 group : {self.__group}\n')
                 
-       
+    # Создание нового пользователя, добавление пользователя в группы.  
     def adduser(self):
             self.__conn.add(f'{self.__dn}', ['person','user'],
         {'givenName' : {self.__givenName},
@@ -185,7 +198,9 @@ class User:
                 for group in self.__group:
                     addUsersInGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local')
                     print(self.__conn.result)
-                
+    
+    # Изменение ползователей, удаляем пользователя из стандартным групп, 
+    # добавляем пришедшие группы, вносим изменения в пользователя.
     def modifyuser(self):
         for group in settings.defaultgroup:
             removeUsersFromGroups(self.__conn,{self.__dn},f'cn={group},ou=Пользователи,dc=test,dc=local',fix=True)
@@ -207,8 +222,10 @@ class User:
         'department': [(MODIFY_REPLACE, [self.__department])]
         })
         self.__conn.modify_dn(self.__dn,f'cn={self.__displayname}',new_superior=f'ou={self.__sn[0:1]},ou=Пользователи,{settings.dndomian}')
-        
-           
+
+
+
 if __name__ == '__main__':
-    test = User('Амир','Беличенко','Константинович','8B22574D-jfd54534545354534553ggg',['Chair','Manager','Employee'],'ОМР','лаборант')
+    test = User('Амир','Беличенко','Константинович','8B22574D-jfd54534545354534553ggg',['Chair','Manager','Student','Employee'],title='lol')
+    test.checkdeptitle()
     
